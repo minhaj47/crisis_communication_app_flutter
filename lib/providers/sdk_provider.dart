@@ -1,180 +1,278 @@
+// lib/providers/sdk_provider.dart
 import 'dart:convert';
-import 'dart:core';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bridgefy/bridgefy.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:new_project/domain/entities/log.dart';
-import 'package:new_project/domain/entities/message.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:uuid/uuid.dart';
+
+import '../models/chat_models.dart';
 
 class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
   final _bridgefy = Bridgefy();
-  final ScrollController logsScrollController = ScrollController();
-  Message? newMessage;
+
+  // State management
   bool isInitialized = false;
   bool isStarted = false;
   bool permissionsGranted = false;
-  String userId = '';
-  int tabIndex = 0;
-  List<Log> logList = [];
+  String currentUserId = '';
+  String statusMessage = 'Disconnected';
+  int connectedPeersCount = 0;
 
-  void _addLog(Log newLog) {
-    logList.add(newLog);
-    notifyListeners();
-  }
+  // Chat data
+  final List<ChatMessage> messages = [];
 
-  void showLogs(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('SDK Logs'),
-        content: Container(
-          width: double.maxFinite,
-          height: 400,
-          child: Scrollbar(
-            thumbVisibility: true,
-            child: ListView.builder(
-              itemCount: logList.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: SelectableText(
-                    logList[index].text,
-                    style: TextStyle(fontSize: 14),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('CLOSE'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool> _checkPermissions() async {
-    final status = await [
+  Future<bool> checkPermissions() async {
+    final permissions = [
       Permission.location,
       Permission.bluetoothAdvertise,
       Permission.bluetoothConnect,
       Permission.bluetoothScan,
-    ].request();
-    if (Platform.isIOS) return true;
+    ];
 
-    bool granted = true;
-    status.forEach((key, value) {
-      if (value == PermissionStatus.permanentlyDenied ||
-          value == PermissionStatus.denied) {
-        granted = false;
-        _addLog(Log(text: '$key is required', type: LogType.error));
-      }
-    });
-    if (!granted) {
-      openAppSettings();
+    final status = await permissions.request();
+    permissionsGranted = status.values.every((s) => s.isGranted);
+
+    if (!permissionsGranted) {
+      statusMessage = 'Permissions required';
+      notifyListeners();
     }
-    return granted;
+
+    return permissionsGranted;
   }
 
-  Future<void> initialized() async {
+  Future<void> initialize() async {
+    if (isInitialized) return;
+
     try {
-      permissionsGranted = await _checkPermissions();
-      print('🚀 [MY_APP_LOG] Connection status: $permissionsGranted');
-      if (!permissionsGranted || isInitialized) {
-        print(
-            "permissionsGranted: $permissionsGranted, isInitialized: $isInitialized");
-        _addLog(Log(text: 'Bridgefy initialized', type: LogType.success));
-        notifyListeners();
-        return;
-      }
+      statusMessage = 'Initializing...';
+      notifyListeners();
+
+      currentUserId = const Uuid().v4();
+
       await _bridgefy.initialize(
         apiKey: "3b431d37-6394-4dad-8ce5-a1785cfd9a5c",
         delegate: this,
-        verboseLogging: true,
+        verboseLogging: false,
       );
+
       isInitialized = await _bridgefy.isInitialized;
-      print(isInitialized.toString());
-      _addLog(Log(text: 'Bridgefy initialized', type: LogType.success));
+
+      if (isInitialized) {
+        await start();
+      } else {
+        statusMessage = 'Initialization failed';
+      }
+
       notifyListeners();
     } catch (e) {
-      _addLog(Log(text: 'Unable to initialize: $e', type: LogType.error));
+      statusMessage = 'Error: ${e.toString()}';
+      notifyListeners();
     }
   }
 
-  Future<void> start({
-    String? userId,
-    BridgefyPropagationProfile propagationProfile =
-        BridgefyPropagationProfile.standard,
-  }) async {
+  Future<void> start() async {
     if (!isInitialized || !permissionsGranted) {
-      await initialized();
+      if (!permissionsGranted) {
+        permissionsGranted = await checkPermissions();
+        if (!permissionsGranted) return;
+      }
+      if (!isInitialized) {
+        await initialize();
+        return;
+      }
     }
-    if (!permissionsGranted) {
-      return;
+
+    try {
+      await _bridgefy.start();
+    } catch (e) {
+      statusMessage = 'Failed to start: $e';
+      notifyListeners();
     }
-    assert(isInitialized, 'Bridgefy is not initialized');
-    await _bridgefy.start();
-    _addLog(Log(text: 'Bridgefy started', type: LogType.success));
-    notifyListeners();
   }
 
   Future<void> stop() async {
-    assert(isInitialized, 'Bridgefy is not initialized');
-    assert(isStarted, 'Bridgefy is not started');
-    await _bridgefy.stop();
-    notifyListeners();
+    if (!isInitialized || !isStarted) return;
+
+    try {
+      await _bridgefy.stop();
+    } catch (e) {
+      statusMessage = 'Failed to stop: $e';
+      notifyListeners();
+    }
   }
 
-  void resetNewMessage() {
-    newMessage = null;
+  Future<List<String>> get connectedPeers async {
+    try {
+      return await _bridgefy.connectedPeers;
+    } catch (e) {
+      return [];
+    }
   }
 
-  void clearLogs() {
-    logList.clear();
-    notifyListeners();
+  Future<void> sendMessage(ChatMessage message) async {
+    if (!isStarted) throw Exception('Not connected');
+
+    final messageData = {
+      'id': message.id,
+      'content': message.content,
+      'senderId': message.senderId,
+      'timestamp': message.timestamp.millisecondsSinceEpoch,
+    };
+
+    final data = Uint8List.fromList(utf8.encode(jsonEncode(messageData)));
+
+    await _bridgefy.send(
+      data: data,
+      transmissionMode: BridgefyTransmissionMode(
+        type: BridgefyTransmissionModeType.broadcast,
+        uuid: currentUserId,
+      ),
+    );
   }
 
-  @override
-  void bridgefyDidConnect({required String userID}) {
-    _addLog(Log(
-        text: 'A user with id $userID has connected', type: LogType.success));
+  void addMessage(ChatMessage message) {
+    if (!messages.any((msg) => msg.id == message.id)) {
+      messages.add(message);
+      notifyListeners();
+    }
   }
 
-  @override
-  void bridgefyDidEstablishSecureConnection({required String userID}) {
-    _addLog(Log(text: 'didEstablishSecureConnection', type: LogType.normal));
+  void updateMessageStatus(String messageId, MessageStatus status) {
+    final index = messages.indexWhere((msg) => msg.id == messageId);
+    if (index >= 0) {
+      messages[index] = messages[index].copyWith(status: status);
+      notifyListeners();
+    }
   }
 
-  @override
-  void bridgefyDidDisconnect({required String userID}) {
-    _addLog(Log(text: 'didDisconnect: $userID', type: LogType.finish));
+  ChatMessage _parseReceivedMessage(Uint8List data, String messageId) {
+    try {
+      final jsonString = utf8.decode(data);
+      final messageData = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      return ChatMessage(
+        id: messageData['id'] ?? messageId,
+        content: messageData['content'] ?? 'Unknown message',
+        senderId: messageData['senderId'] ?? 'Unknown',
+        timestamp: messageData['timestamp'] != null
+            ? DateTime.fromMillisecondsSinceEpoch(messageData['timestamp'])
+            : DateTime.now(),
+        isFromMe: false,
+        status: MessageStatus.sent,
+      );
+    } catch (e) {
+      return ChatMessage(
+        id: messageId,
+        content: utf8.decode(data),
+        senderId: 'Unknown',
+        timestamp: DateTime.now(),
+        isFromMe: false,
+        status: MessageStatus.sent,
+      );
+    }
   }
 
-  @override
-  void bridgefyDidDestroySession() {
-    _addLog(Log(text: 'didDestroySession', type: LogType.normal));
-  }
-
+  // Bridgefy Delegate Methods
   @override
   void bridgefyDidStart({required String currentUserID}) {
     isStarted = true;
-    userId = currentUserID;
-    _addLog(Log(text: 'didStart: $currentUserID', type: LogType.success));
+    currentUserId = currentUserID;
+    statusMessage = 'Connected to mesh network';
+    notifyListeners();
+  }
+
+  @override
+  void bridgefyDidFailToStart({BridgefyError? error}) {
+    isStarted = false;
+    statusMessage = 'Failed to start: ${error?.message ?? 'Unknown error'}';
     notifyListeners();
   }
 
   @override
   void bridgefyDidStop() {
     isStarted = false;
-    userId = '';
-    _addLog(Log(text: 'bridgefyDidStop', type: LogType.finish));
+    connectedPeersCount = 0;
+    statusMessage = 'Disconnected';
     notifyListeners();
+  }
+
+  @override
+  void bridgefyDidConnect({required String userID}) {
+    connectedPeersCount++;
+    statusMessage = 'Connected ($connectedPeersCount peers)';
+    notifyListeners();
+  }
+
+  @override
+  void bridgefyDidDisconnect({required String userID}) {
+    connectedPeersCount = (connectedPeersCount - 1).clamp(0, 999);
+    statusMessage = connectedPeersCount > 0
+        ? 'Connected ($connectedPeersCount peers)'
+        : 'No peers connected';
+    notifyListeners();
+  }
+
+  @override
+  void bridgefyDidReceiveData({
+    required Uint8List data,
+    required String messageId,
+    required BridgefyTransmissionMode transmissionMode,
+  }) {
+    final message = _parseReceivedMessage(data, messageId);
+    addMessage(message);
+  }
+
+  @override
+  void bridgefyDidSendMessage({required String messageID}) {
+    updateMessageStatus(messageID, MessageStatus.sent);
+  }
+
+  @override
+  void bridgefyDidFailSendingMessage({
+    required String messageID,
+    BridgefyError? error,
+  }) {
+    updateMessageStatus(messageID, MessageStatus.failed);
+  }
+
+  // Minimal implementations for other required methods
+  @override
+  void bridgefyDidFailToStop({BridgefyError? error}) {}
+
+  @override
+  void bridgefyDidUpdateState({required String state}) {}
+
+  @override
+  void bridgefyDidDestroySession() {}
+
+  @override
+  void bridgefyDidEstablishSecureConnection({required String userID}) {}
+
+  @override
+  void bridgefyDidFailToDestroySession() {}
+
+  @override
+  void bridgefyDidFailToEstablishSecureConnection({
+    required String userID,
+    BridgefyError? error,
+  }) {}
+
+  @override
+  void bridgefyDidReceiveDataFromUser({
+    required Uint8List data,
+    required String messageId,
+    required String userID,
+  }) {
+    bridgefyDidReceiveData(
+      data: data,
+      messageId: messageId,
+      transmissionMode: BridgefyTransmissionMode(
+        type: BridgefyTransmissionModeType.p2p,
+        uuid: userID,
+      ),
+    );
   }
 
   @override
@@ -182,57 +280,13 @@ class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
     required String messageID,
     required int position,
     required int of,
-  }) {
-    _addLog(Log(
-        text: 'didSendDataProgress: $messageID, $position, $of',
-        type: LogType.normal));
-  }
+  }) {}
 
   @override
-  void bridgefyDidSendMessage({required String messageID}) {
-    _addLog(Log(text: 'sendMessage: $messageID', type: LogType.success));
-  }
-
-  @override
-  void bridgefyDidReceiveData(
-      {required Uint8List data,
-      required String messageId,
-      required BridgefyTransmissionMode transmissionMode}) {
-    final message = const Utf8Decoder().convert(data);
-    newMessage = Message(text: message, origin: OriginMessage.other);
-    _addLog(Log(
-        text: 'didReceiveData: $data, $messageId, $transmissionMode',
-        type: LogType.normal));
-    notifyListeners();
-  }
-
-  @override
-  void bridgefyDidFailSendingMessage(
-      {required String messageID, BridgefyError? error}) {
-    _addLog(Log(
-        text: 'didFailSendingMessage $messageID: $error', type: LogType.error));
-  }
-
-  @override
-  void bridgefyDidFailToDestroySession() {
-    _addLog(Log(text: 'didFailToDestroySession', type: LogType.error));
-  }
-
-  @override
-  void bridgefyDidFailToEstablishSecureConnection(
-      {required String userID, required BridgefyError error}) {
-    _addLog(Log(
-        text: 'didFailToEstablishSecureConnection with $userID: $error',
-        type: LogType.error));
-  }
-
-  @override
-  void bridgefyDidFailToStart({required BridgefyError error}) {
-    _addLog(Log(text: 'didFailToStart: $error', type: LogType.error));
-  }
-
-  @override
-  void bridgefyDidFailToStop({required BridgefyError error}) {
-    _addLog(Log(text: 'didFailToStop: $error', type: LogType.error));
+  void dispose() {
+    if (isStarted) {
+      _bridgefy.stop();
+    }
+    super.dispose();
   }
 }

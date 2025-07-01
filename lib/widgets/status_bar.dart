@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../models/app_models.dart';
+import '../models/chat_models.dart';
 
 class StatusBar extends StatelessWidget {
-  final MeshConnectionStatus connectionStatus;
+  final ConnectionStatus connectionStatus;
   final int connectedPeersCount;
   final String currentUserName;
   final String errorMessage;
@@ -21,41 +21,41 @@ class StatusBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: connectionStatus == MeshConnectionStatus.connected
+      color: connectionStatus == ConnectionStatus.connected
           ? Colors.green[100]
-          : connectionStatus == MeshConnectionStatus.connecting
+          : connectionStatus == ConnectionStatus.connecting
               ? Colors.orange[100]
               : Colors.red[100],
       child: Row(
         children: [
           Icon(
-            connectionStatus == MeshConnectionStatus.connected
+            connectionStatus == ConnectionStatus.connected
                 ? Icons.check_circle
-                : connectionStatus == MeshConnectionStatus.connecting
+                : connectionStatus == ConnectionStatus.connecting
                     ? Icons.access_time
                     : Icons.error,
             size: 16,
-            color: connectionStatus == MeshConnectionStatus.connected
+            color: connectionStatus == ConnectionStatus.connected
                 ? Colors.green[800]
-                : connectionStatus == MeshConnectionStatus.connecting
+                : connectionStatus == ConnectionStatus.connecting
                     ? Colors.orange[800]
                     : Colors.red[800],
           ),
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              connectionStatus == MeshConnectionStatus.connected
+              connectionStatus == ConnectionStatus.connected
                   ? 'Connected • $connectedPeersCount peer(s) • $currentUserName'
-                  : connectionStatus == MeshConnectionStatus.connecting
+                  : connectionStatus == ConnectionStatus.connecting
                       ? 'Connecting...'
                       : errorMessage.isNotEmpty
                           ? errorMessage
                           : 'Disconnected',
               style: TextStyle(
                 fontSize: 12,
-                color: connectionStatus == MeshConnectionStatus.connected
+                color: connectionStatus == ConnectionStatus.connected
                     ? Colors.green[800]
-                    : connectionStatus == MeshConnectionStatus.connecting
+                    : connectionStatus == ConnectionStatus.connecting
                         ? Colors.orange[800]
                         : Colors.red[800],
               ),

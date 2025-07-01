@@ -1,7 +1,6 @@
 // screens/welcome_screen.dart
 import 'package:flutter/material.dart';
 import 'package:new_project/models/app_models.dart';
-import 'package:new_project/providers/sdk_provider.dart';
 import 'package:new_project/services/connection_service.dart';
 import 'package:new_project/utils/app_constants.dart';
 
@@ -14,7 +13,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isChecking = true;
   ConnectionStatus? _connectionStatus;
   String _statusMessage = 'Checking connections...';
-  final SdkProvider _sdkProvider = SdkProvider();
 
   @override
   void initState() {
@@ -61,9 +59,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         elevation: 0,
         actions: [
           PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'logs') _sdkProvider.showLogs(context);
-            },
             itemBuilder: (BuildContext context) {
               return [
                 PopupMenuItem<String>(

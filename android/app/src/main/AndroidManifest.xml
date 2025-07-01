@@ -13,7 +13,7 @@
 
         <meta-data
             android:name="com.bridgefy.sdk.API_KEY"
-            android:value="" />
+            android:value="3b431d37-6394-4dad-8ce5-a1785cfd9a5c" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

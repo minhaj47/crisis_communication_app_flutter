@@ -1,6 +1,5 @@
 // main.dart
 import 'package:flutter/material.dart';
-import 'package:new_project/providers/chat_provider.dart';
 import 'package:new_project/providers/sdk_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -22,11 +21,6 @@ class CrisisCommApp extends StatelessWidget {
     return MultiProvider(
         providers: [
           ChangeNotifierProvider<SdkProvider>(create: (_) => SdkProvider()),
-          ChangeNotifierProxyProvider<SdkProvider, ChatProvider>(
-            create: (_) => ChatProvider(),
-            update: (_, sdkProvider, chatProvider) =>
-                chatProvider!..setSDK(sdkProvider),
-          ),
         ],
         child: MaterialApp(
           title: 'Ummah Connect - Crisis Communication',

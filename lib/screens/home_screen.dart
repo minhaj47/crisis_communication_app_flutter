@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _getBody() {
     switch (_currentIndex) {
       case 0:
-        return const ChatScreen();
+        return MeshChatPage();
       case 1:
         return BroadcastScreen();
       case 2:
@@ -68,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 4:
         return SettingsScreen();
       default:
-        return const ChatScreen();
+        return MeshChatPage();
     }
   }
 }

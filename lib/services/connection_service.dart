@@ -6,12 +6,13 @@ class ConnectionService {
   static Future<ConnectionStatus> checkConnections() async {
     try {
       final sdkProvider = SdkProvider();
-      await sdkProvider.initialized();
+      await sdkProvider.initialize();
+      await sdkProvider.checkPermissions();
       return ConnectionStatus(
         availableConnections: [ConnectionType.mesh, ConnectionType.localServer],
         canInitializeMesh: true,
-        localServerReachable: true,
-        internetAvailable: true,
+        localServerReachable: false,
+        internetAvailable: false,
       );
     } catch (e) {
       return ConnectionStatus(
@@ -21,17 +22,5 @@ class ConnectionService {
         internetAvailable: false,
       );
     }
-  }
-
-  static Future<bool> initializeMesh() async {
-    // TODO: Initialize Bluetooth mesh network
-    await Future.delayed(Duration(seconds: 2));
-    return true;
-  }
-
-  static Future<bool> connectToLocalServer() async {
-    // TODO: Connect to local server infrastructure
-    await Future.delayed(Duration(seconds: 2));
-    return true;
   }
 }
