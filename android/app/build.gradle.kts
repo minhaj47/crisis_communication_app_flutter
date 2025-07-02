@@ -15,19 +15,16 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-
-
     kotlinOptions {
         jvmTarget = "17"
     }   
-
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.new_project"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 23  // Override Flutter's minSdkVersion to support torch_light
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -45,7 +42,6 @@ android {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
-
 
 flutter {
     source = "../.."
