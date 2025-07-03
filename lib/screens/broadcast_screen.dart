@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../providers/broadcast_message_provider.dart';
 import 'package:new_project/models/app_models.dart';
 import 'package:new_project/utils/app_constants.dart';
 import 'package:new_project/providers/sdk_provider.dart';
+import 'package:new_project/screens/settings_screen.dart';
 
 class BroadcastScreen extends StatefulWidget {
   const BroadcastScreen({super.key});
@@ -16,81 +18,28 @@ class BroadcastScreen extends StatefulWidget {
 }
 
 class _BroadcastScreenState extends State<BroadcastScreen> {
-  List<CrisisMessage> _messages = [];
   static const String BROADCAST_TOPIC = 'crisis_broadcast';
-  static const String STORAGE_KEY = 'broadcast_messages';
 
   @override
   void initState() {
     super.initState();
-    _loadStoredMessages();
     _setupBroadcastListener();
   }
 
   @override
   void dispose() {
-    // Unsubscribe from broadcast topic
     final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
     sdkProvider.unsubscribeFromTopic(BROADCAST_TOPIC);
     super.dispose();
   }
 
-  // Load messages from local storage
-  Future<void> _loadStoredMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final messagesJson = prefs.getStringList(STORAGE_KEY);
-      
-      if (messagesJson != null) {
-        final loadedMessages = messagesJson
-            .map((messageJson) => CrisisMessage.fromJson(jsonDecode(messageJson)))
-            .toList();
-        
-        setState(() {
-          _messages = loadedMessages;
-        });
-      }
-    } catch (e) {
-      print('Error loading stored messages: $e');
-    }
-  }
-
-  // Save messages to local storage
-  Future<void> _saveMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final messagesJson = _messages
-          .map((message) => jsonEncode(message.toJson()))
-          .toList();
-      
-      await prefs.setStringList(STORAGE_KEY, messagesJson);
-    } catch (e) {
-      print('Error saving messages: $e');
-    }
-  }
-
-  // Clear all stored messages
-  Future<void> _clearStoredMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(STORAGE_KEY);
-      setState(() {
-        _messages.clear();
-      });
-    } catch (e) {
-      print('Error clearing stored messages: $e');
-    }
-  }
-
   void _setupBroadcastListener() {
     final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
-    
-    // Subscribe to broadcast topic to receive crisis messages
+    final broadcastProvider = Provider.of<BroadcastMessageProvider>(context, listen: false);
     sdkProvider.subscribeToTopic(BROADCAST_TOPIC, (Uint8List data, String messageId) {
       try {
         final jsonString = utf8.decode(data);
         final messageData = jsonDecode(jsonString) as Map<String, dynamic>;
-        
         final receivedMessage = CrisisMessage(
           id: messageData['id'] ?? messageId,
           title: messageData['title'] ?? 'Unknown Title',
@@ -118,167 +67,51 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
             orElse: () => ConnectionType.mesh,
           ),
         );
-
-        // Add received message if it's not already in the list
-        if (!_messages.any((msg) => msg.id == receivedMessage.id)) {
-          if (mounted) {
-            setState(() {
-              _messages.insert(0, receivedMessage);
-            });
-            
-            // Save to local storage
-            _saveMessages();
-            
-            // Show notification for received broadcast
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('New broadcast: ${receivedMessage.title}'),
-                backgroundColor: _getPriorityColor(receivedMessage.priority),
-                behavior: SnackBarBehavior.floating,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        }
+        broadcastProvider.addMessage(receivedMessage);
       } catch (e) {
-        print('Error parsing received broadcast message: $e');
+        print('Error handling broadcast message: $e');
       }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<SdkProvider>(
-      builder: (context, sdkProvider, child) {
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Broadcast Messages'),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            elevation: 1,
-            actions: [
-              // Add clear messages button
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'clear') {
-                    _showClearMessagesDialog();
-                  }
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'clear',
-                    child: Row(
-                      children: [
-                        Icon(Icons.clear_all, size: 20),
-                        SizedBox(width: 8),
-                        Text('Clear All Messages'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: Size.fromHeight(40),
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(
-                      sdkProvider.isStarted ? Icons.wifi : Icons.wifi_off,
-                      color: sdkProvider.isStarted ? Colors.green : Colors.red,
-                      size: 16,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      sdkProvider.statusMessage,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: sdkProvider.isStarted ? Colors.green : Colors.red,
-                      ),
-                    ),
-                    Spacer(),
-                    if (sdkProvider.isStarted && sdkProvider.connectedPeersCount > 0)
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${sdkProvider.connectedPeersCount} peers',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          body: _buildMessagesView(sdkProvider),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: sdkProvider.isStarted 
-                ? _showBroadcastDialog 
-                : _showNotConnectedDialog,
-            backgroundColor: sdkProvider.isStarted 
-                ? Color(0xFF2E7D32) 
-                : Colors.grey,
-            icon: Icon(
-              sdkProvider.isStarted 
-                  ? Icons.broadcast_on_personal 
-                  : Icons.signal_wifi_off,
-              color: Colors.white,
-            ),
-            label: Text(
-              sdkProvider.isStarted ? 'Broadcast' : 'Not Connected',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildMessagesView(SdkProvider sdkProvider) {
-    return _messages.isEmpty
-        ? _buildEmptyMessagesState(sdkProvider)
+
+  Widget _buildMessagesView(BroadcastMessageProvider broadcastProvider) {
+    return broadcastProvider.messages.isEmpty
+        ? _buildEmptyMessagesState()
         : RefreshIndicator(
             onRefresh: () async {
               // Refresh connection status and reload messages
-              if (!sdkProvider.isStarted) {
-                await sdkProvider.start();
+              if (!Provider.of<SdkProvider>(context, listen: false).isStarted) {
+                await Provider.of<SdkProvider>(context, listen: false).start();
               }
-              await _loadStoredMessages();
+              await broadcastProvider.loadMessages();
             },
             child: ListView.builder(
               padding: EdgeInsets.all(16),
-              itemCount: _messages.length,
+              itemCount: broadcastProvider.messages.length,
               itemBuilder: (context, index) =>
-                  _buildMessageCard(_messages[index]),
+                  _buildMessageCard(broadcastProvider.messages[index]),
             ),
           );
   }
 
-  Widget _buildEmptyMessagesState(SdkProvider sdkProvider) {
+  Widget _buildEmptyMessagesState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            sdkProvider.isStarted 
-                ? Icons.message_outlined 
+            Provider.of<SdkProvider>(context, listen: false).isStarted
+                ? Icons.message_outlined
                 : Icons.signal_wifi_off,
             size: 80,
             color: Colors.grey[300],
           ),
           SizedBox(height: 24),
           Text(
-            sdkProvider.isStarted 
-                ? 'No messages yet' 
+            Provider.of<SdkProvider>(context, listen: false).isStarted
+                ? 'No messages yet'
                 : 'Not connected to mesh network',
             style: TextStyle(
               fontSize: 20,
@@ -288,7 +121,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
           ),
           SizedBox(height: 8),
           Text(
-            sdkProvider.isStarted
+            Provider.of<SdkProvider>(context, listen: false).isStarted
                 ? 'Tap the broadcast button to send your first message'
                 : 'Pull down to refresh and connect to the mesh network',
             style: TextStyle(
@@ -297,11 +130,11 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          if (!sdkProvider.isStarted) ...[
+          if (!Provider.of<SdkProvider>(context, listen: false).isStarted) ...[
             SizedBox(height: 16),
             ElevatedButton(
               onPressed: () async {
-                await sdkProvider.start();
+                await Provider.of<SdkProvider>(context, listen: false).start();
               },
               child: Text('Connect to Mesh Network'),
             ),
@@ -435,7 +268,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
     );
   }
 
-  void _showClearMessagesDialog() {
+  void _showClearMessagesDialog(BroadcastMessageProvider broadcastProvider) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -448,7 +281,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              _clearStoredMessages();
+              broadcastProvider.clearMessages();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -511,174 +344,201 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Container(
-                padding: EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  maxWidth: MediaQuery.of(context).size.width * 0.9,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.broadcast_on_personal,
-                            color: Color(0xFF2E7D32)),
-                        SizedBox(width: 8),
-                        Text(
-                          'Broadcast Message',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Spacer(),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 20),
+                    // Scrollable content
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Title Row
+                            Row(
+                              children: [
+                                Icon(Icons.broadcast_on_personal,
+                                    color: Color(0xFF2E7D32)),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Broadcast Message',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Spacer(),
+                                IconButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: Icon(Icons.close),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 20),
 
-                    // Network Status Indicator
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                            // Network Info
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.device_hub,
+                                      color: Colors.blue, size: 16),
+                                  SizedBox(width: 8),
+                                  Consumer<SdkProvider>(
+                                    builder: (context, sdkProvider, child) {
+                                      return Text(
+                                        'Broadcasting to ${sdkProvider.connectedPeersCount} peers',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 16),
+
+                            // Message Type
+                            Text('Message Type',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: DropdownButtonFormField<MessageType>(
+                                value: selectedType,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                ),
+                                items: MessageType.values.map((type) {
+                                  return DropdownMenuItem<MessageType>(
+                                    value: type,
+                                    child: Text(
+                                        AppConstants.messageTypeLabels[type]!),
+                                  );
+                                }).toList(),
+                                onChanged: (value) =>
+                                    setState(() => selectedType = value!),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+
+                            // Priority
+                            Text('Priority',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: DropdownButtonFormField<MessagePriority>(
+                                value: selectedPriority,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                ),
+                                items: MessagePriority.values.map((priority) {
+                                  return DropdownMenuItem<MessagePriority>(
+                                    value: priority,
+                                    child: Text(priority.name.toUpperCase()),
+                                  );
+                                }).toList(),
+                                onChanged: (value) =>
+                                    setState(() => selectedPriority = value!),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+
+                            // Title Input
+                            Text('Title',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextField(
+                                controller: titleController,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter message title',
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+
+                            // Message Input
+                            Text('Message',
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextField(
+                                controller: contentController,
+                                maxLines: 3,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter your message content',
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+
+                    // Action Buttons (Sticky Bottom)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       child: Row(
                         children: [
-                          Icon(Icons.device_hub, color: Colors.blue, size: 16),
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text('Cancel'),
+                            ),
+                          ),
                           SizedBox(width: 8),
-                          Consumer<SdkProvider>(
-                            builder: (context, sdkProvider, child) {
-                              return Text(
-                                'Broadcasting to ${sdkProvider.connectedPeersCount} peers',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _sendBroadcast(
+                                context,
+                                selectedType,
+                                selectedPriority,
+                                titleController.text,
+                                contentController.text,
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFF2E7D32),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              );
-                            },
+                              ),
+                              child: Text('SEND'),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    SizedBox(height: 16),
-
-                    // Message Type Selection
-                    Text('Message Type',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    DropdownButtonFormField<MessageType>(
-                      value: selectedType,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: MessageType.values.map((type) {
-                        return DropdownMenuItem<MessageType>(
-                          value: type,
-                          child: Text(AppConstants.messageTypeLabels[type]!),
-                        );
-                      }).toList(),
-                      onChanged: (value) =>
-                          setState(() => selectedType = value!),
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Priority Selection
-                    Text('Priority',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    DropdownButtonFormField<MessagePriority>(
-                      value: selectedPriority,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: MessagePriority.values.map((priority) {
-                        return DropdownMenuItem<MessagePriority>(
-                          value: priority,
-                          child: Text(priority.name.toUpperCase()),
-                        );
-                      }).toList(),
-                      onChanged: (value) =>
-                          setState(() => selectedPriority = value!),
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Title Input
-                    Text('Title',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter message title',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Content Input
-                    Text('Message',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    TextField(
-                      controller: contentController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter your message content',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      maxLines: 3,
-                    ),
-
-                    SizedBox(height: 24),
-
-                    // Action Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text('Cancel'),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => _sendBroadcast(
-                              context,
-                              selectedType,
-                              selectedPriority,
-                              titleController.text,
-                              contentController.text,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF2E7D32),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: Text('SEND'),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -709,7 +569,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
     }
 
     final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
-    
+
     if (!sdkProvider.isStarted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -758,13 +618,9 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
       // Send via mesh network
       await sdkProvider.sendTopicMessage(data, BROADCAST_TOPIC);
 
-      // Add to local list
-      setState(() {
-        _messages.insert(0, newMessage);
-      });
-
-      // Save to local storage
-      await _saveMessages();
+      // Add to provider
+      final broadcastProvider = Provider.of<BroadcastMessageProvider>(context, listen: false);
+      await broadcastProvider.addMessage(newMessage);
 
       Navigator.pop(context);
 
@@ -785,6 +641,131 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
         ),
       );
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<BroadcastMessageProvider>(
+      builder: (context, broadcastProvider, _) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Broadcast Messages'),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 1,
+            actions: [
+              
+              IconButton(
+                      icon: Icon(Icons.settings),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => SettingsScreen()),
+                        );
+                      },
+                    ),
+              // Add clear messages button
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'clear') {
+                    _showClearMessagesDialog(broadcastProvider);
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'clear',
+                    child: Row(
+                      children: [
+                        Icon(Icons.clear_all, size: 20),
+                        SizedBox(width: 8),
+                        Text('Clear All Messages'),
+                      ],
+                    ),
+                  ),
+                ],
+                
+              ),
+            ],
+            bottom: PreferredSize(
+              preferredSize: Size.fromHeight(40),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Provider.of<SdkProvider>(context, listen: false).isStarted
+                          ? Icons.wifi
+                          : Icons.wifi_off,
+                      color: Provider.of<SdkProvider>(context, listen: false)
+                              .isStarted
+                          ? Colors.green
+                          : Colors.red,
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      Provider.of<SdkProvider>(context, listen: false)
+                          .statusMessage,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Provider.of<SdkProvider>(context, listen: false)
+                                .isStarted
+                            ? Colors.green
+                            : Colors.red,
+                      ),
+                    ),
+                    Spacer(),
+                    if (Provider.of<SdkProvider>(context, listen: false)
+                            .isStarted &&
+                        Provider.of<SdkProvider>(context, listen: false)
+                                .connectedPeersCount >
+                            0)
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${Provider.of<SdkProvider>(context, listen: false).connectedPeersCount} peers',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          body: _buildMessagesView(broadcastProvider),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: Provider.of<SdkProvider>(context, listen: false).isStarted
+                ? _showBroadcastDialog
+                : _showNotConnectedDialog,
+            backgroundColor: Provider.of<SdkProvider>(context, listen: false)
+                    .isStarted
+                ? Color(0xFF2E7D32)
+                : Colors.grey,
+            icon: Icon(
+              Provider.of<SdkProvider>(context, listen: false).isStarted
+                  ? Icons.broadcast_on_personal
+                  : Icons.signal_wifi_off,
+              color: Colors.white,
+            ),
+            label: Text(
+              Provider.of<SdkProvider>(context, listen: false).isStarted
+                  ? 'Broadcast'
+                  : 'Not Connected',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Color _getPriorityColor(MessagePriority priority) {

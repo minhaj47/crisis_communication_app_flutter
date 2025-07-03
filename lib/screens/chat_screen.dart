@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../models/chat_models.dart';
 import '../providers/sdk_provider.dart';
 import '../widgets/message_bubble.dart';
+import '../screens/settings_screen.dart';
 
 class MeshChatPage extends StatefulWidget {
   @override
@@ -103,6 +104,15 @@ class _MeshChatPageState extends State<MeshChatPage> {
                     ),
                     SizedBox(width: 4),
                     Text('${provider.connectedPeersCount}'),
+                    IconButton(
+                      icon: Icon(Icons.settings),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => SettingsScreen()),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),

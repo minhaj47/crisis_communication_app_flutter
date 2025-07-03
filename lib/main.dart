@@ -11,6 +11,7 @@ import 'screens/role_selection_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sos_screen.dart';
 import 'screens/welcome_screen.dart';
+import 'providers/broadcast_message_provider.dart';
 
 void main() {
   runApp(CrisisCommApp());
@@ -22,6 +23,8 @@ class CrisisCommApp extends StatelessWidget {
     return MultiProvider(
         providers: [
           ChangeNotifierProvider<SdkProvider>(create: (_) => SdkProvider()),
+          ChangeNotifierProvider<BroadcastMessageProvider>(
+              create: (_) => BroadcastMessageProvider()),
         ],
         child: MaterialApp(
           title: 'Ummah Connect - Crisis Communication',
