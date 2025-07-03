@@ -1,14 +1,15 @@
 // services/flashlight_service.dart
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:torch_light/torch_light.dart';
-import 'package:provider/provider.dart';
-import 'package:vibration/vibration.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'package:provider/provider.dart';
+import 'package:torch_light/torch_light.dart';
+import 'package:vibration/vibration.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+
 import '../providers/sdk_provider.dart';
 
 /// Shared service to handle flashlight and alarm logic across the app.
@@ -20,7 +21,7 @@ class FlashlightService {
   final ValueNotifier<bool> isFlashlightOn = ValueNotifier(false);
   final ValueNotifier<bool> isAlarmActive = ValueNotifier(false);
   final String _commandTopic = 'flashlight_commands';
-  
+
   SdkProvider? _sdkProvider;
   bool _isInitialized = false;
   bool _isHandlingRemoteCommand = false;
@@ -33,7 +34,7 @@ class FlashlightService {
 
   Future<void> initialize(BuildContext context) async {
     if (_isInitialized) return;
-    
+
     try {
       // Check if device has torch capability
       final hasFlash = await TorchLight.isTorchAvailable();
@@ -49,7 +50,7 @@ class FlashlightService {
       _ringtonePlayer = FlutterRingtonePlayer();
 
       _sdkProvider = Provider.of<SdkProvider>(context, listen: false);
-      
+
       // Wait for Bridgefy to be ready if it's not already
       if (!_sdkProvider!.isInitialized) {
         print('Bridgefy not initialized, waiting...');
@@ -58,7 +59,7 @@ class FlashlightService {
           await Future.delayed(const Duration(milliseconds: 500));
           attempts++;
         }
-        
+
         if (!_sdkProvider!.isInitialized) {
           throw Exception('Bridgefy initialization timeout');
         }
@@ -66,12 +67,13 @@ class FlashlightService {
 
       // Subscribe to mesh commands
       await _sdkProvider!.subscribeToTopic(_commandTopic, _handleMeshCommand);
-      
+
       _isInitialized = true;
       print('FlashlightService initialized successfully');
     } catch (e) {
       print('Error initializing FlashlightService: $e');
-      throw Exception('Failed to initialize flashlight service: ${e.toString()}');
+      throw Exception(
+          'Failed to initialize flashlight service: ${e.toString()}');
     }
   }
 
@@ -80,23 +82,23 @@ class FlashlightService {
       print('Already handling a remote command, ignoring duplicate');
       return;
     }
-    
+
     try {
       final commandString = utf8.decode(data);
       print('Received mesh command: $commandString');
-      
+
       // Parse the command JSON
       final Map<String, dynamic> command = jsonDecode(commandString);
-      
+
       // Validate command structure
       if (command['type'] != 'flashlight' && command['type'] != 'alarm') {
         print('Invalid command type: ${command['type']}');
         return;
       }
-      
+
       final String action = command['action'];
       final String commandType = command['type'];
-      
+
       // Handle different command types
       if (commandType == 'flashlight') {
         if (action != 'on' && action != 'off') {
@@ -117,11 +119,12 @@ class FlashlightService {
   }
 
   /// Handle flashlight command from mesh or local action
-  Future<void> _handleFlashlightCommand(String action, {bool fromRemote = false}) async {
+  Future<void> _handleFlashlightCommand(String action,
+      {bool fromRemote = false}) async {
     if (fromRemote) {
       _isHandlingRemoteCommand = true;
     }
-    
+
     try {
       if (action == 'on') {
         await _turnOnFlashlight(broadcast: !fromRemote);
@@ -136,11 +139,12 @@ class FlashlightService {
   }
 
   /// Handle alarm command from mesh or local action
-  Future<void> _handleAlarmCommand(String action, {bool fromRemote = false}) async {
+  Future<void> _handleAlarmCommand(String action,
+      {bool fromRemote = false}) async {
     if (fromRemote) {
       _isHandlingRemoteCommand = true;
     }
-    
+
     try {
       if (action == 'start') {
         await _startAlarm(broadcast: !fromRemote);
@@ -155,7 +159,7 @@ class FlashlightService {
   }
 
   // FLASHLIGHT FUNCTIONALITY (UNCHANGED)
-  
+
   /// Turn on flashlight
   Future<void> turnOn() async {
     await _turnOnFlashlight(broadcast: true);
@@ -182,7 +186,7 @@ class FlashlightService {
         isFlashlightOn.value = true;
         print('Flashlight turned ON');
       }
-      
+
       if (broadcast) {
         await _broadcastCommand('flashlight', 'on');
       }
@@ -199,7 +203,7 @@ class FlashlightService {
         isFlashlightOn.value = false;
         print('Flashlight turned OFF');
       }
-      
+
       if (broadcast) {
         await _broadcastCommand('flashlight', 'off');
       }
@@ -234,19 +238,19 @@ class FlashlightService {
     try {
       if (!isAlarmActive.value) {
         isAlarmActive.value = true;
-        
+
         // Keep screen awake during alarm
         await WakelockPlus.enable();
-        
+
         // Start alarm sound
         await _startAlarmSound();
-        
+
         // Start vibration pattern
         await _startVibrationPattern();
-        
+
         print('Alarm started');
       }
-      
+
       if (broadcast) {
         await _broadcastCommand('alarm', 'start');
       }
@@ -260,23 +264,23 @@ class FlashlightService {
     try {
       if (isAlarmActive.value) {
         isAlarmActive.value = false;
-        
+
         // Stop all timers
         _alarmTimer?.cancel();
         _vibrationTimer?.cancel();
-        
+
         // Stop alarm sound
         await _stopAlarmSound();
-        
+
         // Stop vibration
         await Vibration.cancel();
-        
+
         // Disable wakelock
         await WakelockPlus.disable();
-        
+
         print('Alarm stopped');
       }
-      
+
       if (broadcast) {
         await _broadcastCommand('alarm', 'stop');
       }
@@ -320,7 +324,7 @@ class FlashlightService {
     } catch (e) {
       print('Error stopping alarm sound: $e');
     }
-    
+
     _alarmTimer?.cancel();
   }
 
@@ -329,15 +333,16 @@ class FlashlightService {
       print('Device does not have vibrator');
       return;
     }
-    
+
     try {
       // Start continuous vibration pattern
-      _vibrationTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) async {
+      _vibrationTimer =
+          Timer.periodic(const Duration(milliseconds: 1000), (timer) async {
         if (!isAlarmActive.value) {
           timer.cancel();
           return;
         }
-        
+
         try {
           // Create an alarm-like vibration pattern: long-short-short-long
           await Vibration.vibrate(
@@ -359,7 +364,8 @@ class FlashlightService {
     } catch (e) {
       print('Error starting vibration pattern: $e');
       // Fallback to basic haptic feedback
-      _vibrationTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) async {
+      _vibrationTimer =
+          Timer.periodic(const Duration(milliseconds: 1000), (timer) async {
         if (!isAlarmActive.value) {
           timer.cancel();
           return;
@@ -390,7 +396,7 @@ class FlashlightService {
 
       final commandString = jsonEncode(command);
       final data = Uint8List.fromList(utf8.encode(commandString));
-      
+
       await _sdkProvider!.sendTopicMessage(data, _commandTopic);
       print('Broadcasted $type command: $action');
     } catch (e) {
@@ -412,27 +418,27 @@ class FlashlightService {
         print('Error stopping alarm during dispose: $e');
       });
     }
-    
+
     // Turn off flashlight if on
     if (isFlashlightOn.value) {
       TorchLight.disableTorch().catchError((e) {
         print('Error disabling torch during dispose: $e');
       });
     }
-    
+
     // Cancel timers
     _alarmTimer?.cancel();
     _vibrationTimer?.cancel();
-    
+
     // Disable wakelock
     WakelockPlus.disable().catchError((e) {
       print('Error disabling wakelock during dispose: $e');
     });
-    
+
     // Dispose notifiers
     isFlashlightOn.dispose();
     isAlarmActive.dispose();
-    
+
     _isInitialized = false;
   }
 }

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'screens/broadcast_screen.dart';
 import 'screens/flashlight_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/map_screen.dart';
 import 'screens/role_selection_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/sos_screen.dart';
@@ -41,6 +42,7 @@ class CrisisCommApp extends StatelessWidget {
             '/flashlight': (context) => FlashlightScreen(),
             '/sos': (context) => SOSScreen(),
             '/settings': (context) => SettingsScreen(),
+            '/map': (context) => MapScreen(),
           },
         ));
   }

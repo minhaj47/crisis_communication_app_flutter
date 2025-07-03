@@ -1,9 +1,9 @@
 // screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:new_project/models/app_models.dart';
 import 'package:new_project/screens/broadcast_screen.dart';
 import 'package:new_project/screens/chat_screen.dart';
 import 'package:new_project/screens/flashlight_screen.dart';
+import 'package:new_project/screens/map_screen.dart';
 import 'package:new_project/screens/settings_screen.dart';
 import 'package:new_project/screens/sos_screen.dart';
 
@@ -14,7 +14,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  List<CrisisMessage> _messages = [];
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +49,10 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.settings),
             label: 'Settings',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map),
+            label: 'Map',
+          ),
         ],
       ),
     );
@@ -60,13 +63,15 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return MeshChatPage();
       case 1:
-        return BroadcastScreen();
+        return const BroadcastScreen();
       case 2:
         return FlashlightScreen();
       case 3:
         return SOSScreen();
       case 4:
         return SettingsScreen();
+      case 5:
+        return MapScreen();
       default:
         return MeshChatPage();
     }
