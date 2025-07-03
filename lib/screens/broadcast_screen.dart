@@ -1,7 +1,12 @@
 // screens/broadcast_screen.dart
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:new_project/models/app_models.dart';
 import 'package:new_project/utils/app_constants.dart';
+import 'package:new_project/providers/sdk_provider.dart';
 
 class BroadcastScreen extends StatefulWidget {
   const BroadcastScreen({super.key});
@@ -12,46 +17,269 @@ class BroadcastScreen extends StatefulWidget {
 
 class _BroadcastScreenState extends State<BroadcastScreen> {
   List<CrisisMessage> _messages = [];
+  static const String BROADCAST_TOPIC = 'crisis_broadcast';
+  static const String STORAGE_KEY = 'broadcast_messages';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStoredMessages();
+    _setupBroadcastListener();
+  }
+
+  @override
+  void dispose() {
+    // Unsubscribe from broadcast topic
+    final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
+    sdkProvider.unsubscribeFromTopic(BROADCAST_TOPIC);
+    super.dispose();
+  }
+
+  // Load messages from local storage
+  Future<void> _loadStoredMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messagesJson = prefs.getStringList(STORAGE_KEY);
+      
+      if (messagesJson != null) {
+        final loadedMessages = messagesJson
+            .map((messageJson) => CrisisMessage.fromJson(jsonDecode(messageJson)))
+            .toList();
+        
+        setState(() {
+          _messages = loadedMessages;
+        });
+      }
+    } catch (e) {
+      print('Error loading stored messages: $e');
+    }
+  }
+
+  // Save messages to local storage
+  Future<void> _saveMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messagesJson = _messages
+          .map((message) => jsonEncode(message.toJson()))
+          .toList();
+      
+      await prefs.setStringList(STORAGE_KEY, messagesJson);
+    } catch (e) {
+      print('Error saving messages: $e');
+    }
+  }
+
+  // Clear all stored messages
+  Future<void> _clearStoredMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(STORAGE_KEY);
+      setState(() {
+        _messages.clear();
+      });
+    } catch (e) {
+      print('Error clearing stored messages: $e');
+    }
+  }
+
+  void _setupBroadcastListener() {
+    final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
+    
+    // Subscribe to broadcast topic to receive crisis messages
+    sdkProvider.subscribeToTopic(BROADCAST_TOPIC, (Uint8List data, String messageId) {
+      try {
+        final jsonString = utf8.decode(data);
+        final messageData = jsonDecode(jsonString) as Map<String, dynamic>;
+        
+        final receivedMessage = CrisisMessage(
+          id: messageData['id'] ?? messageId,
+          title: messageData['title'] ?? 'Unknown Title',
+          content: messageData['content'] ?? 'Unknown Content',
+          type: MessageType.values.firstWhere(
+            (e) => e.name == messageData['type'],
+            orElse: () => MessageType.emergency,
+          ),
+          priority: MessagePriority.values.firstWhere(
+            (e) => e.name == messageData['priority'],
+            orElse: () => MessagePriority.high,
+          ),
+          timestamp: messageData['timestamp'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(messageData['timestamp'])
+              : DateTime.now(),
+          latitude: messageData['latitude']?.toDouble() ?? 0.0,
+          longitude: messageData['longitude']?.toDouble() ?? 0.0,
+          senderRole: UserRole.values.firstWhere(
+            (e) => e.name == messageData['senderRole'],
+            orElse: () => UserRole.resident,
+          ),
+          radiusKm: messageData['radiusKm']?.toDouble() ?? 5.0,
+          sentVia: ConnectionType.values.firstWhere(
+            (e) => e.name == messageData['sentVia'],
+            orElse: () => ConnectionType.mesh,
+          ),
+        );
+
+        // Add received message if it's not already in the list
+        if (!_messages.any((msg) => msg.id == receivedMessage.id)) {
+          if (mounted) {
+            setState(() {
+              _messages.insert(0, receivedMessage);
+            });
+            
+            // Save to local storage
+            _saveMessages();
+            
+            // Show notification for received broadcast
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('New broadcast: ${receivedMessage.title}'),
+                backgroundColor: _getPriorityColor(receivedMessage.priority),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('Error parsing received broadcast message: $e');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Broadcast Messages'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
-      ),
-      body: _buildMessagesView(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showBroadcastDialog,
-        backgroundColor: Color(0xFF2E7D32),
-        icon: Icon(Icons.broadcast_on_personal, color: Colors.white),
-        label: Text('Broadcast', style: TextStyle(color: Colors.white)),
-      ),
+    return Consumer<SdkProvider>(
+      builder: (context, sdkProvider, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Broadcast Messages'),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 1,
+            actions: [
+              // Add clear messages button
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'clear') {
+                    _showClearMessagesDialog();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'clear',
+                    child: Row(
+                      children: [
+                        Icon(Icons.clear_all, size: 20),
+                        SizedBox(width: 8),
+                        Text('Clear All Messages'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            bottom: PreferredSize(
+              preferredSize: Size.fromHeight(40),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      sdkProvider.isStarted ? Icons.wifi : Icons.wifi_off,
+                      color: sdkProvider.isStarted ? Colors.green : Colors.red,
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      sdkProvider.statusMessage,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: sdkProvider.isStarted ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    Spacer(),
+                    if (sdkProvider.isStarted && sdkProvider.connectedPeersCount > 0)
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${sdkProvider.connectedPeersCount} peers',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          body: _buildMessagesView(sdkProvider),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: sdkProvider.isStarted 
+                ? _showBroadcastDialog 
+                : _showNotConnectedDialog,
+            backgroundColor: sdkProvider.isStarted 
+                ? Color(0xFF2E7D32) 
+                : Colors.grey,
+            icon: Icon(
+              sdkProvider.isStarted 
+                  ? Icons.broadcast_on_personal 
+                  : Icons.signal_wifi_off,
+              color: Colors.white,
+            ),
+            label: Text(
+              sdkProvider.isStarted ? 'Broadcast' : 'Not Connected',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildMessagesView() {
+  Widget _buildMessagesView(SdkProvider sdkProvider) {
     return _messages.isEmpty
-        ? _buildEmptyMessagesState()
-        : ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: _messages.length,
-            itemBuilder: (context, index) =>
-                _buildMessageCard(_messages[index]),
+        ? _buildEmptyMessagesState(sdkProvider)
+        : RefreshIndicator(
+            onRefresh: () async {
+              // Refresh connection status and reload messages
+              if (!sdkProvider.isStarted) {
+                await sdkProvider.start();
+              }
+              await _loadStoredMessages();
+            },
+            child: ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) =>
+                  _buildMessageCard(_messages[index]),
+            ),
           );
   }
 
-  Widget _buildEmptyMessagesState() {
+  Widget _buildEmptyMessagesState(SdkProvider sdkProvider) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.message_outlined, size: 80, color: Colors.grey[300]),
+          Icon(
+            sdkProvider.isStarted 
+                ? Icons.message_outlined 
+                : Icons.signal_wifi_off,
+            size: 80,
+            color: Colors.grey[300],
+          ),
           SizedBox(height: 24),
-          const Text(
-            'No messages yet',
+          Text(
+            sdkProvider.isStarted 
+                ? 'No messages yet' 
+                : 'Not connected to mesh network',
             style: TextStyle(
               fontSize: 20,
               color: Colors.grey,
@@ -59,14 +287,25 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
             ),
           ),
           SizedBox(height: 8),
-          const Text(
-            'Tap the broadcast button to send your first message',
+          Text(
+            sdkProvider.isStarted
+                ? 'Tap the broadcast button to send your first message'
+                : 'Pull down to refresh and connect to the mesh network',
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey,
             ),
             textAlign: TextAlign.center,
           ),
+          if (!sdkProvider.isStarted) ...[
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                await sdkProvider.start();
+              },
+              child: Text('Connect to Mesh Network'),
+            ),
+          ],
         ],
       ),
     );
@@ -138,22 +377,121 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
               style: TextStyle(fontSize: 14, height: 1.4),
             ),
             SizedBox(height: 8),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                AppConstants.messageTypeLabels[message.type]!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[700],
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    AppConstants.messageTypeLabels[message.type]!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
+                  ),
                 ),
-              ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: message.sentVia == ConnectionType.mesh 
+                        ? Colors.blue.withOpacity(0.1)
+                        : Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        message.sentVia == ConnectionType.mesh 
+                            ? Icons.device_hub
+                            : Icons.cell_tower,
+                        size: 12,
+                        color: message.sentVia == ConnectionType.mesh 
+                            ? Colors.blue
+                            : Colors.orange,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        message.sentVia == ConnectionType.mesh ? 'Mesh' : 'Cellular',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: message.sentVia == ConnectionType.mesh 
+                              ? Colors.blue
+                              : Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showClearMessagesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Clear All Messages'),
+        content: Text('Are you sure you want to clear all stored messages? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _clearStoredMessages();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('All messages cleared'),
+                  backgroundColor: Colors.green,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Clear All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotConnectedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.signal_wifi_off, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Not Connected'),
+          ],
+        ),
+        content: Text('You need to be connected to the mesh network to send broadcast messages.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
+              await sdkProvider.start();
+            },
+            child: Text('Connect'),
+          ),
+        ],
       ),
     );
   }
@@ -199,6 +537,34 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                       ],
                     ),
                     SizedBox(height: 20),
+
+                    // Network Status Indicator
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.device_hub, color: Colors.blue, size: 16),
+                          SizedBox(width: 8),
+                          Consumer<SdkProvider>(
+                            builder: (context, sdkProvider, child) {
+                              return Text(
+                                'Broadcasting to ${sdkProvider.connectedPeersCount} peers',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
 
                     // Message Type Selection
                     Text('Message Type',
@@ -324,14 +690,38 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
     );
   }
 
-  void _sendBroadcast(
+  Future<void> _sendBroadcast(
     BuildContext context,
     MessageType type,
     MessagePriority priority,
     String title,
     String content,
-  ) {
-    if (title.isNotEmpty && content.isNotEmpty) {
+  ) async {
+    if (title.isEmpty || content.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please fill in all fields'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
+    
+    if (!sdkProvider.isStarted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Not connected to mesh network'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    try {
       final newMessage = CrisisMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: title,
@@ -339,30 +729,57 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
         type: type,
         priority: priority,
         timestamp: DateTime.now(),
-        latitude: 0.0,
-        longitude: 0.0,
+        latitude: 0.0, // TODO: Get actual location
+        longitude: 0.0, // TODO: Get actual location
         senderRole: UserRole.resident,
         radiusKm: 5.0,
         sentVia: ConnectionType.mesh,
       );
 
+      // Create message data for mesh network
+      final messageData = {
+        'id': newMessage.id,
+        'title': newMessage.title,
+        'content': newMessage.content,
+        'type': newMessage.type.name,
+        'priority': newMessage.priority.name,
+        'timestamp': newMessage.timestamp.millisecondsSinceEpoch,
+        'latitude': newMessage.latitude,
+        'longitude': newMessage.longitude,
+        'senderRole': newMessage.senderRole.name,
+        'radiusKm': newMessage.radiusKm,
+        'sentVia': newMessage.sentVia.name,
+      };
+
+      // Convert to bytes for mesh network transmission
+      final jsonString = jsonEncode(messageData);
+      final data = Uint8List.fromList(utf8.encode(jsonString));
+
+      // Send via mesh network
+      await sdkProvider.sendTopicMessage(data, BROADCAST_TOPIC);
+
+      // Add to local list
       setState(() {
         _messages.insert(0, newMessage);
       });
+
+      // Save to local storage
+      await _saveMessages();
 
       Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Message broadcasted successfully'),
+          content: Text('Message broadcasted to ${sdkProvider.connectedPeersCount} peers'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } else {
+    } catch (e) {
+      print('Error sending broadcast: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please fill in all fields'),
+          content: Text('Failed to send broadcast: ${e.toString()}'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),

@@ -21,6 +21,20 @@ enum MessageType {
 
 enum MessagePriority { critical, high, normal, low }
 
+enum MeshConnectionStatus {
+  disconnected,
+  connecting,
+  connected,
+  error,
+}
+
+enum MessageStatus {
+  sending,
+  sent,
+  delivered,
+  failed,
+}
+
 class ConnectionStatus {
   final List<ConnectionType> availableConnections;
   final bool canInitializeMesh;
@@ -37,13 +51,13 @@ class ConnectionStatus {
 
 class CrisisMessage {
   final String id;
-  final MessageType type;
-  final MessagePriority priority;
   final String title;
   final String content;
+  final MessageType type;
+  final MessagePriority priority;
+  final DateTime timestamp;
   final double latitude;
   final double longitude;
-  final DateTime timestamp;
   final UserRole senderRole;
   final int hopCount;
   final double radiusKm;
@@ -51,34 +65,140 @@ class CrisisMessage {
 
   CrisisMessage({
     required this.id,
-    required this.type,
-    required this.priority,
     required this.title,
     required this.content,
+    required this.type,
+    required this.priority,
+    required this.timestamp,
     required this.latitude,
     required this.longitude,
-    required this.timestamp,
     required this.senderRole,
     this.hopCount = 0,
     required this.radiusKm,
     required this.sentVia,
   });
-}
 
-// Enhanced chat_models.dart with JSON serialization support
+  // Convert CrisisMessage to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'type': type.name,
+      'priority': priority.name,
+      'timestamp': timestamp.millisecondsSinceEpoch,
+      'latitude': latitude,
+      'longitude': longitude,
+      'senderRole': senderRole.name,
+      'hopCount': hopCount,
+      'radiusKm': radiusKm,
+      'sentVia': sentVia.name,
+    };
+  }
 
-enum MeshConnectionStatus {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
+  // Create CrisisMessage from JSON
+  factory CrisisMessage.fromJson(Map<String, dynamic> json) {
+    return CrisisMessage(
+      id: json['id'] ?? '',
+      title: json['title'] ?? 'Unknown Title',
+      content: json['content'] ?? 'Unknown Content',
+      type: MessageType.values.firstWhere(
+        (e) => e.name == json['type'],
+        orElse: () => MessageType.emergency,
+      ),
+      priority: MessagePriority.values.firstWhere(
+        (e) => e.name == json['priority'],
+        orElse: () => MessagePriority.high,
+      ),
+      timestamp: json['timestamp'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(json['timestamp'])
+          : DateTime.now(),
+      latitude: json['latitude']?.toDouble() ?? 0.0,
+      longitude: json['longitude']?.toDouble() ?? 0.0,
+      senderRole: UserRole.values.firstWhere(
+        (e) => e.name == json['senderRole'],
+        orElse: () => UserRole.resident,
+      ),
+      hopCount: json['hopCount'] ?? 0,
+      radiusKm: json['radiusKm']?.toDouble() ?? 5.0,
+      sentVia: ConnectionType.values.firstWhere(
+        (e) => e.name == json['sentVia'],
+        orElse: () => ConnectionType.mesh,
+      ),
+    );
+  }
 
-enum MessageStatus {
-  sending,
-  sent,
-  delivered,
-  failed,
+  // Create a copy with updated values
+  CrisisMessage copyWith({
+    String? id,
+    String? title,
+    String? content,
+    MessageType? type,
+    MessagePriority? priority,
+    DateTime? timestamp,
+    double? latitude,
+    double? longitude,
+    UserRole? senderRole,
+    int? hopCount,
+    double? radiusKm,
+    ConnectionType? sentVia,
+  }) {
+    return CrisisMessage(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      type: type ?? this.type,
+      priority: priority ?? this.priority,
+      timestamp: timestamp ?? this.timestamp,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      senderRole: senderRole ?? this.senderRole,
+      hopCount: hopCount ?? this.hopCount,
+      radiusKm: radiusKm ?? this.radiusKm,
+      sentVia: sentVia ?? this.sentVia,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CrisisMessage &&
+        other.id == id &&
+        other.title == title &&
+        other.content == content &&
+        other.type == type &&
+        other.priority == priority &&
+        other.timestamp == timestamp &&
+        other.latitude == latitude &&
+        other.longitude == longitude &&
+        other.senderRole == senderRole &&
+        other.hopCount == hopCount &&
+        other.radiusKm == radiusKm &&
+        other.sentVia == sentVia;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      title,
+      content,
+      type,
+      priority,
+      timestamp,
+      latitude,
+      longitude,
+      senderRole,
+      hopCount,
+      radiusKm,
+      sentVia,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'CrisisMessage(id: $id, title: $title, type: $type, priority: $priority, timestamp: $timestamp, hopCount: $hopCount, sentVia: $sentVia)';
+  }
 }
 
 class ChatMessage {
@@ -96,12 +216,11 @@ class ChatMessage {
     required this.senderId,
     required this.timestamp,
     required this.isFromMe,
-    this.status = MessageStatus.sent, // Default value from second code
+    this.status = MessageStatus.sent,
     this.senderName,
   });
 
   // JSON serialization
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -126,7 +245,6 @@ class ChatMessage {
     );
   }
 
-  // Chat models
   ChatMessage copyWith({
     String? id,
     String? content,
