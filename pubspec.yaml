@@ -22,6 +22,12 @@ dependencies:
   provider: ^6.1.1
   http: ^1.2.2
 
+  vibration: ^2.0.0  # Updated to v2.0.0 for Flutter v2 embedding support
+  flutter_ringtone_player: ^4.0.0+4
+  wakelock_plus: ^1.2.5
+  audioplayers: ^5.2.1  # For alarm sounds (optional)
+  
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

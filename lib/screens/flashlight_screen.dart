@@ -70,17 +70,44 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
     }
   }
 
+  Future<void> _toggleAlarm() async {
+    final provider = Provider.of<SdkProvider>(context, listen: false);
+    
+    if (!provider.isStarted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bridgefy mesh is not connected. Please connect to mesh network first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await _flashlightService.toggleAlarm();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flashlight Tool'),
+        title: const Text('Flashlight & Alarm Tool'),
         backgroundColor: Theme.of(context).primaryColor,
       ),
       body: _isInitialized
           ? Consumer<SdkProvider>(
               builder: (context, provider, child) {
-                return Padding(
+                return SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -130,71 +157,187 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                       
                       const SizedBox(height: 40),
                       
-                      // Flashlight Control
-                      ValueListenableBuilder<bool>(
-                        valueListenable: _flashlightService.isFlashlightOn,
-                        builder: (context, isOn, _) => Column(
-                          children: [
-                            Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isOn 
-                                    ? Colors.yellow.shade100 
-                                    : Colors.grey.shade100,
-                                border: Border.all(
-                                  color: isOn 
-                                      ? Colors.yellow.shade700 
-                                      : Colors.grey.shade400,
-                                  width: 3,
-                                ),
-                                boxShadow: isOn 
-                                    ? [
-                                        BoxShadow(
-                                          color: Colors.yellow.shade300,
-                                          blurRadius: 20,
-                                          spreadRadius: 5,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                              child: Icon(
-                                isOn ? Icons.flashlight_on : Icons.flashlight_off,
-                                size: 60,
-                                color: isOn 
-                                    ? Colors.yellow.shade700 
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                            
-                            const SizedBox(height: 32),
-                            
-                            ElevatedButton.icon(
-                              icon: Icon(isOn ? Icons.flash_off : Icons.flash_on),
-                              label: Text(
-                                isOn ? 'Turn Off' : 'Turn On',
-                                style: const TextStyle(
+                      // Flashlight Control Section
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: _flashlightService.isFlashlightOn,
+                          builder: (context, isOn, _) => Column(
+                            children: [
+                              Text(
+                                'FLASHLIGHT',
+                                style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
+                                  letterSpacing: 1.2,
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isOn 
-                                    ? Colors.red.shade600 
-                                    : Colors.green.shade600,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(200, 56),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(28),
+                              
+                              const SizedBox(height: 20),
+                              
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isOn 
+                                      ? Colors.yellow.shade100 
+                                      : Colors.grey.shade100,
+                                  border: Border.all(
+                                    color: isOn 
+                                        ? Colors.yellow.shade700 
+                                        : Colors.grey.shade400,
+                                    width: 3,
+                                  ),
+                                  boxShadow: isOn 
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.yellow.shade300,
+                                            blurRadius: 20,
+                                            spreadRadius: 5,
+                                          ),
+                                        ]
+                                      : null,
                                 ),
-                                elevation: 8,
+                                child: Icon(
+                                  isOn ? Icons.flashlight_on : Icons.flashlight_off,
+                                  size: 50,
+                                  color: isOn 
+                                      ? Colors.yellow.shade700 
+                                      : Colors.grey.shade600,
+                                ),
                               ),
-                              onPressed: provider.isStarted 
-                                  ? _toggleFlashlight 
-                                  : null,
-                            ),
-                          ],
+                              
+                              const SizedBox(height: 20),
+                              
+                              ElevatedButton.icon(
+                                icon: Icon(isOn ? Icons.flash_off : Icons.flash_on),
+                                label: Text(
+                                  isOn ? 'Turn Off' : 'Turn On',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isOn 
+                                      ? Colors.red.shade600 
+                                      : Colors.green.shade600,
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(180, 48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  elevation: 4,
+                                ),
+                                onPressed: provider.isStarted 
+                                    ? _toggleFlashlight 
+                                    : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 30),
+                      
+                      // Alarm Control Section
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: _flashlightService.isAlarmActive,
+                          builder: (context, isActive, _) => Column(
+                            children: [
+                              Text(
+                                'ALARM',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isActive 
+                                      ? Colors.red.shade100 
+                                      : Colors.grey.shade100,
+                                  border: Border.all(
+                                    color: isActive 
+                                        ? Colors.red.shade700 
+                                        : Colors.grey.shade400,
+                                    width: 3,
+                                  ),
+                                  boxShadow: isActive 
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.red.shade300,
+                                            blurRadius: 15,
+                                            spreadRadius: 3,
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 300),
+                                  child: Icon(
+                                    isActive ? Icons.notification_important : Icons.notifications_off,
+                                    key: ValueKey(isActive),
+                                    size: 50,
+                                    color: isActive 
+                                        ? Colors.red.shade700 
+                                        : Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              ElevatedButton.icon(
+                                icon: Icon(isActive ? Icons.stop : Icons.campaign),
+                                label: Text(
+                                  isActive ? 'Stop Alarm' : 'Start Alarm',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isActive 
+                                      ? Colors.grey.shade600 
+                                      : Colors.red.shade600,
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(180, 48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  elevation: 4,
+                                ),
+                                onPressed: provider.isStarted 
+                                    ? _toggleAlarm 
+                                    : null,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       
@@ -217,7 +360,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Toggling the flashlight here will send a command to all mesh-connected devices.',
+                              'Both flashlight and alarm controls will synchronize across all mesh-connected devices. Use these tools for emergency situations or group coordination.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 14,
@@ -228,7 +371,7 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                             if (!provider.isStarted) ...[
                               const SizedBox(height: 8),
                               Text(
-                                'Connect to the mesh network first to synchronize flashlights.',
+                                'Connect to the mesh network first to synchronize with other devices.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 12,
