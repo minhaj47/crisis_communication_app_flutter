@@ -36,14 +36,19 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Messages'),
           BottomNavigationBarItem(
+            icon: Icon(Icons.warning),
+            label: 'SOS',
+          ),  
+        
+          BottomNavigationBarItem(
+            icon: Icon(Icons.warning),
+            label: 'Tools',
+          ),
+       
+            BottomNavigationBarItem(
             icon: Icon(Icons.add_circle),
             label: 'Broadcast',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.flashlight_on),
-            label: 'Tools',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.sos), label: 'SOS'),
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
             label: 'Map',
@@ -57,11 +62,11 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_currentIndex) {
       case 0:
         return MeshChatPage();
-      case 1:
+      case 3:
         return const BroadcastScreen();
       case 2:
         return FlashlightScreen();
-      case 3:
+      case 1:
         return SOSScreen();
       case 4:
         return MapScreen();

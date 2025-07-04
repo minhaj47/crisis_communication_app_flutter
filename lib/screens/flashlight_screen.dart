@@ -134,23 +134,35 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
           ),
           body: Column(
             children: [
-              // Status bar
+              // Compact Status Bar
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.all(8),
+                padding: EdgeInsets.symmetric(vertical: 6, horizontal: 16),
                 color: provider.isStarted
                     ? Colors.green.shade100
-                    : Colors.orange.shade100,
-                child: Text(
-                  provider.isStarted 
-                      ? 'Connected - Tools will sync across mesh'
-                      : 'Not connected - Connect to mesh network first',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12),
+                    : Colors.red.shade100,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      provider.isStarted ? Icons.check_circle : Icons.error,
+                      size: 16,
+                      color: provider.isStarted ? Colors.green : Colors.red,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      provider.isStarted ? 'MESH CONNECTED' : 'MESH DISCONNECTED',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: provider.isStarted ? Colors.green.shade800 : Colors.red.shade800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-              // Main content
+              // Main Emergency Controls
               Expanded(
                 child: _isInitialized
                     ? ValueListenableBuilder<bool>(
@@ -159,146 +171,240 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                           return ValueListenableBuilder<bool>(
                             valueListenable: _flashlightService.isAlarmActive,
                             builder: (context, isAlarmActive, _) {
-                              return Center(
+                              return Container(
+                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    // Flashlight Control
-                                    GestureDetector(
-                                      onTap: provider.isStarted ? _toggleFlashlight : null,
-                                      child: Container(
-                                        width: 120,
-                                        height: 120,
-                                        margin: EdgeInsets.all(20),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: isFlashlightOn 
-                                              ? Colors.yellow.shade100 
-                                              : Colors.grey.shade100,
-                                          border: Border.all(
-                                            color: isFlashlightOn 
-                                                ? Colors.yellow.shade700 
-                                                : Colors.grey.shade400,
-                                            width: 3,
+                                    // Large Emergency Buttons Row
+                                    Expanded(
+                                      flex: 5,
+                                      child: Row(
+                                        children: [
+                                          // FLASHLIGHT - Large button
+                                          Expanded(
+                                            child: GestureDetector(
+                                              onTap: provider.isStarted ? _toggleFlashlight : null,
+                                              child: Container(
+                                                margin: EdgeInsets.only(right: 8),
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  color: isFlashlightOn 
+                                                      ? Colors.yellow.shade300 
+                                                      : Colors.grey.shade200,
+                                                  border: Border.all(
+                                                    color: isFlashlightOn 
+                                                        ? Colors.yellow.shade700 
+                                                        : Colors.grey.shade400,
+                                                    width: 4,
+                                                  ),
+                                                  boxShadow: isFlashlightOn 
+                                                      ? [
+                                                          BoxShadow(
+                                                            color: Colors.yellow.shade400,
+                                                            blurRadius: 20,
+                                                            spreadRadius: 0,
+                                                          ),
+                                                        ]
+                                                      : [
+                                                          BoxShadow(
+                                                            color: Colors.black12,
+                                                            blurRadius: 8,
+                                                            spreadRadius: 0,
+                                                          ),
+                                                        ],
+                                                ),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      isFlashlightOn ? Icons.flashlight_on : Icons.flashlight_off,
+                                                      size: 80,
+                                                      color: isFlashlightOn 
+                                                          ? Colors.yellow.shade900 
+                                                          : Colors.grey.shade600,
+                                                    ),
+                                                    SizedBox(height: 12),
+                                                    Text(
+                                                      'FLASHLIGHT',
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: isFlashlightOn 
+                                                            ? Colors.yellow.shade900 
+                                                            : Colors.grey.shade700,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 4),
+                                                    Text(
+                                                      isFlashlightOn ? 'ON' : 'OFF',
+                                                      style: TextStyle(
+                                                        fontSize: 24,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: isFlashlightOn 
+                                                            ? Colors.yellow.shade900 
+                                                            : Colors.grey.shade600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                          boxShadow: isFlashlightOn 
-                                              ? [
-                                                  BoxShadow(
-                                                    color: Colors.yellow.shade300,
-                                                    blurRadius: 20,
-                                                    spreadRadius: 5,
+                                          
+                                          // ALARM - Large button
+                                          Expanded(
+                                            child: GestureDetector(
+                                              onTap: provider.isStarted ? _toggleAlarm : null,
+                                              child: Container(
+                                                margin: EdgeInsets.only(left: 8),
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  color: isAlarmActive 
+                                                      ? Colors.red.shade400 
+                                                      : Colors.grey.shade200,
+                                                  border: Border.all(
+                                                    color: isAlarmActive 
+                                                        ? Colors.red.shade700 
+                                                        : Colors.grey.shade400,
+                                                    width: 4,
                                                   ),
-                                                ]
-                                              : [
-                                                  BoxShadow(
-                                                    color: Colors.grey.shade300,
-                                                    blurRadius: 8,
-                                                    spreadRadius: 2,
-                                                  ),
-                                                ],
-                                        ),
-                                        child: Icon(
-                                          isFlashlightOn ? Icons.flashlight_on : Icons.flashlight_off,
-                                          size: 60,
-                                          color: isFlashlightOn 
-                                              ? Colors.yellow.shade700 
-                                              : Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ),
-                                    
-                                    Text(
-                                      isFlashlightOn ? 'Flashlight ON' : 'Flashlight OFF',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: isFlashlightOn 
-                                            ? Colors.yellow.shade700 
-                                            : Colors.grey.shade600,
-                                      ),
-                                    ),
-                                    
-                                    SizedBox(height: 40),
-                                    
-                                    // Alarm Control
-                                    GestureDetector(
-                                      onTap: provider.isStarted ? _toggleAlarm : null,
-                                      child: Container(
-                                        width: 120,
-                                        height: 120,
-                                        margin: EdgeInsets.all(20),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: isAlarmActive 
-                                              ? Colors.red.shade100 
-                                              : Colors.grey.shade100,
-                                          border: Border.all(
-                                            color: isAlarmActive 
-                                                ? Colors.red.shade700 
-                                                : Colors.grey.shade400,
-                                            width: 3,
+                                                  boxShadow: isAlarmActive 
+                                                      ? [
+                                                          BoxShadow(
+                                                            color: Colors.red.shade300,
+                                                            blurRadius: 20,
+                                                            spreadRadius: 0,
+                                                          ),
+                                                        ]
+                                                      : [
+                                                          BoxShadow(
+                                                            color: Colors.black12,
+                                                            blurRadius: 8,
+                                                            spreadRadius: 0,
+                                                          ),
+                                                        ],
+                                                ),
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    AnimatedSwitcher(
+                                                      duration: const Duration(milliseconds: 300),
+                                                      child: Icon(
+                                                        isAlarmActive ? Icons.warning : Icons.notifications_off,
+                                                        key: ValueKey(isAlarmActive),
+                                                        size: 80,
+                                                        color: isAlarmActive 
+                                                            ? Colors.red.shade900 
+                                                            : Colors.grey.shade600,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 12),
+                                                    Text(
+                                                      'ALARM',
+                                                      style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: isAlarmActive 
+                                                            ? Colors.red.shade900 
+                                                            : Colors.grey.shade700,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 4),
+                                                    Text(
+                                                      isAlarmActive ? 'ACTIVE' : 'OFF',
+                                                      style: TextStyle(
+                                                        fontSize: 24,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: isAlarmActive 
+                                                            ? Colors.red.shade900 
+                                                            : Colors.grey.shade600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                          boxShadow: isAlarmActive 
-                                              ? [
-                                                  BoxShadow(
-                                                    color: Colors.red.shade300,
-                                                    blurRadius: 15,
-                                                    spreadRadius: 3,
-                                                  ),
-                                                ]
-                                              : [
-                                                  BoxShadow(
-                                                    color: Colors.grey.shade300,
-                                                    blurRadius: 8,
-                                                    spreadRadius: 2,
-                                                  ),
-                                                ],
-                                        ),
-                                        child: AnimatedSwitcher(
-                                          duration: const Duration(milliseconds: 300),
-                                          child: Icon(
-                                            isAlarmActive ? Icons.notification_important : Icons.notifications_off,
-                                            key: ValueKey(isAlarmActive),
-                                            size: 60,
-                                            color: isAlarmActive 
-                                                ? Colors.red.shade700 
-                                                : Colors.grey.shade600,
-                                          ),
-                                        ),
+                                        ],
                                       ),
                                     ),
                                     
-                                    Text(
-                                      isAlarmActive ? 'Alarm ACTIVE' : 'Alarm OFF',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: isAlarmActive 
-                                            ? Colors.red.shade700 
-                                            : Colors.grey.shade600,
-                                      ),
-                                    ),
+                                    SizedBox(height: 16),
                                     
-                                    SizedBox(height: 40),
-                                    
-                                    // Instructions
+                                    // Emergency Instructions - Compact
                                     Container(
-                                      margin: EdgeInsets.symmetric(horizontal: 40),
-                                      padding: EdgeInsets.all(16),
+                                      padding: EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         color: Colors.blue.shade50,
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(8),
                                         border: Border.all(color: Colors.blue.shade200),
                                       ),
-                                      child: Text(
-                                        'Tap the icons to control flashlight and alarm.\nControls sync across all connected devices.',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.blue.shade800,
-                                          height: 1.4,
-                                        ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            color: Colors.blue.shade700,
+                                            size: 20,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'TAP buttons to control. Syncs across mesh network.',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.blue.shade800,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
+                                    ),
+                                    
+                                    SizedBox(height: 8),
+                                    
+                                    // Quick Status Row
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: provider.isStarted 
+                                                ? Colors.green.shade100 
+                                                : Colors.red.shade100,
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(
+                                              color: provider.isStarted 
+                                                  ? Colors.green.shade400 
+                                                  : Colors.red.shade400,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.people,
+                                                size: 16,
+                                                color: provider.isStarted 
+                                                    ? Colors.green.shade700 
+                                                    : Colors.red.shade700,
+                                              ),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                '${provider.connectedPeersCount} Connected',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: provider.isStarted 
+                                                      ? Colors.green.shade700 
+                                                      : Colors.red.shade700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -311,13 +417,17 @@ class _FlashlightScreenState extends State<FlashlightScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(),
+                            CircularProgressIndicator(
+                              strokeWidth: 6,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                            ),
                             SizedBox(height: 16),
                             Text(
                               _statusMessage,
                               style: TextStyle(
-                                color: Colors.grey.shade600,
+                                color: Colors.grey.shade700,
                                 fontSize: 16,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],

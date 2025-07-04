@@ -137,11 +137,7 @@ class MessageBubble extends StatelessWidget {
                 : colorScheme.onSurfaceVariant,
           ),
         ),
-        if (message.isFromMe) ...[
-          const SizedBox(width: 6),
-          _buildStatusIcon(colorScheme),
-        ],
-      ],
+        const SizedBox(width: 6),],
     );
   }
 
