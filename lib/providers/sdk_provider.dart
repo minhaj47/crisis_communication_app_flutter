@@ -6,6 +6,7 @@ import 'package:bridgefy/bridgefy.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_models.dart';
 
@@ -185,7 +186,15 @@ class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
       notifyListeners();
     }
   }
-
+  Future<String> _getUserName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('user_name') ?? 'Unknown User';
+    } catch (e) {
+      print('Error getting user name: $e');
+      return 'Unknown User';
+    }
+  }
   Future<void> stop() async {
     if (!isInitialized || !isStarted) {
       print('Cannot stop - not initialized or not started');
@@ -216,12 +225,15 @@ class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
   Future<void> sendMessage(ChatMessage message) async {
     if (!isStarted) throw Exception('Not connected');
 
+    final userName = await _getUserName();
+    
     final messageData = {
       'id': message.id,
       'content': message.content,
       'senderId': message.senderId,
+      'senderName': userName, // Add sender name
       'timestamp': message.timestamp.millisecondsSinceEpoch,
-      'type': 'chat', // Mark as regular chat message
+      'type': 'chat',
     };
 
     final data = Uint8List.fromList(utf8.encode(jsonEncode(messageData)));
@@ -233,9 +245,7 @@ class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
         uuid: currentUserId,
       ),
     );
-  }
-
-  void addMessage(ChatMessage message) {
+  }  void addMessage(ChatMessage message) {
     if (!messages.any((msg) => msg.id == message.id)) {
       messages.add(message);
       notifyListeners();
@@ -259,6 +269,7 @@ class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
         id: messageData['id'] ?? messageId,
         content: messageData['content'] ?? 'Unknown message',
         senderId: messageData['senderId'] ?? 'Unknown',
+        senderName: messageData['senderName'] ?? 'Unknown User', // Add this line
         timestamp: messageData['timestamp'] != null
             ? DateTime.fromMillisecondsSinceEpoch(messageData['timestamp'])
             : DateTime.now(),
@@ -271,13 +282,13 @@ class SdkProvider extends ChangeNotifier implements BridgefyDelegate {
         id: messageId,
         content: utf8.decode(data),
         senderId: 'Unknown',
+        senderName: 'Unknown User', // Add this line
         timestamp: DateTime.now(),
         isFromMe: false,
         status: MessageStatus.sent,
       );
     }
   }
-
   // Bridgefy Delegate Methods
   @override
   void bridgefyDidStart({required String currentUserID}) {

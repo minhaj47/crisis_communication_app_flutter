@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Add this import
 
 import '../models/chat_models.dart';
 import '../providers/sdk_provider.dart';
@@ -37,6 +38,17 @@ class _MeshChatPageState extends State<MeshChatPage> {
     }
   }
 
+  // Add this method to get user's name
+  Future<String> _getUserName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('user_name') ?? 'You';
+    } catch (e) {
+      return 'You';
+    }
+  }
+
+  // Update the _sendMessage method
   Future<void> _sendMessage() async {
     final provider = context.read<SdkProvider>();
 
@@ -45,10 +57,13 @@ class _MeshChatPageState extends State<MeshChatPage> {
     }
 
     final messageText = _messageController.text.trim();
+    final userName = await _getUserName();
+    
     final message = ChatMessage(
       id: const Uuid().v4(),
       content: messageText,
       senderId: provider.currentUserId,
+      senderName: userName, // Add this line
       timestamp: DateTime.now(),
       isFromMe: true,
       status: MessageStatus.sending,

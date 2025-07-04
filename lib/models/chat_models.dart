@@ -4,6 +4,7 @@ class ChatMessage {
   final String id;
   final String content;
   final String senderId;
+  final String senderName; // Add this field
   final DateTime timestamp;
   final bool isFromMe;
   final MessageStatus status;
@@ -12,6 +13,7 @@ class ChatMessage {
     required this.id,
     required this.content,
     required this.senderId,
+    required this.senderName, // Add this parameter
     required this.timestamp,
     required this.isFromMe,
     this.status = MessageStatus.sent,
@@ -21,6 +23,7 @@ class ChatMessage {
     String? id,
     String? content,
     String? senderId,
+    String? senderName, // Add this parameter
     DateTime? timestamp,
     bool? isFromMe,
     MessageStatus? status,
@@ -29,6 +32,7 @@ class ChatMessage {
       id: id ?? this.id,
       content: content ?? this.content,
       senderId: senderId ?? this.senderId,
+      senderName: senderName ?? this.senderName, // Add this line
       timestamp: timestamp ?? this.timestamp,
       isFromMe: isFromMe ?? this.isFromMe,
       status: status ?? this.status,

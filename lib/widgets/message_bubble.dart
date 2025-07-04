@@ -1,3 +1,4 @@
+// lib/widgets/message_bubble.dart
 import 'package:flutter/material.dart';
 import 'package:new_project/models/chat_models.dart';
 
@@ -20,7 +21,7 @@ class MessageBubble extends StatelessWidget {
         children: [
           if (!message.isFromMe) ...[
             _buildAvatar(
-              initials: message.senderId.substring(0, 2).toUpperCase(),
+              initials: _getInitials(message.senderName),
               backgroundColor: colorScheme.secondary,
               textColor: colorScheme.onSecondary,
             ),
@@ -56,7 +57,7 @@ class MessageBubble extends StatelessWidget {
                 children: [
                   if (!message.isFromMe) ...[
                     Text(
-                      'User_${message.senderId.substring(0, 6)}',
+                      message.senderName, // Show actual sender name
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: colorScheme.onSurfaceVariant,
@@ -82,7 +83,7 @@ class MessageBubble extends StatelessWidget {
           if (message.isFromMe) ...[
             const SizedBox(width: 12),
             _buildAvatar(
-              initials: 'ME',
+              initials: _getInitials(message.senderName),
               backgroundColor: colorScheme.primaryContainer,
               textColor: colorScheme.onPrimaryContainer,
             ),
@@ -90,6 +91,18 @@ class MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Helper method to get initials from name
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+    
+    final words = name.trim().split(' ');
+    if (words.length == 1) {
+      return words[0].substring(0, 1).toUpperCase();
+    } else {
+      return '${words[0].substring(0, 1)}${words[1].substring(0, 1)}'.toUpperCase();
+    }
   }
 
   Widget _buildAvatar({
