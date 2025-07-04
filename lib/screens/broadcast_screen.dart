@@ -368,7 +368,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                                 Text(
                                   'Broadcast Message',
                                   style: TextStyle(
-                                    fontSize: 20,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
