@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:provider/provider.dart';
 import '../providers/broadcast_message_provider.dart';
 import 'package:new_project/models/app_models.dart';
 import 'package:new_project/utils/app_constants.dart';
@@ -19,17 +18,20 @@ class BroadcastScreen extends StatefulWidget {
 
 class _BroadcastScreenState extends State<BroadcastScreen> {
   static const String BROADCAST_TOPIC = 'crisis_broadcast';
+  static const String SOS_TOPIC = 'sos_emergency';
 
   @override
   void initState() {
     super.initState();
     _setupBroadcastListener();
+    _setupSOSListener();
   }
 
   @override
   void dispose() {
     final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
     sdkProvider.unsubscribeFromTopic(BROADCAST_TOPIC);
+    sdkProvider.unsubscribeFromTopic(SOS_TOPIC);
     super.dispose();
   }
 
@@ -74,7 +76,42 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
     });
   }
 
-
+  void _setupSOSListener() {
+    final sdkProvider = Provider.of<SdkProvider>(context, listen: false);
+    final broadcastProvider = Provider.of<BroadcastMessageProvider>(context, listen: false);
+    sdkProvider.subscribeToTopic(SOS_TOPIC, (Uint8List data, String messageId) {
+      try {
+        final jsonString = utf8.decode(data);
+        final sosData = jsonDecode(jsonString) as Map<String, dynamic>;
+        
+        final senderName = sosData['senderName'] ?? 'Unknown';
+        final location = sosData['location'] as Map<String, dynamic>?;
+        final timestamp = sosData['timestamp'] as int?;
+        
+        // Create a CrisisMessage for SOS
+        final sosMessage = CrisisMessage(
+          id: messageId,
+          title: 'SOS EMERGENCY',
+          content: 'EMERGENCY: $senderName needs immediate assistance!',
+          type: MessageType.emergency,
+          priority: MessagePriority.high,
+          timestamp: timestamp != null 
+              ? DateTime.fromMillisecondsSinceEpoch(timestamp)
+              : DateTime.now(),
+          latitude: location?['latitude']?.toDouble() ?? 0.0,
+          longitude: location?['longitude']?.toDouble() ?? 0.0,
+          senderRole: UserRole.resident,
+          radiusKm: 5.0,
+          sentVia: ConnectionType.mesh,
+        );
+        
+        broadcastProvider.addMessage(sosMessage);
+        
+      } catch (e) {
+        print('Error handling SOS message: $e');
+      }
+    });
+  }
 
   Widget _buildMessagesView(BroadcastMessageProvider broadcastProvider) {
     return broadcastProvider.messages.isEmpty
@@ -122,7 +159,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
           SizedBox(height: 8),
           Text(
             Provider.of<SdkProvider>(context, listen: false).isStarted
-                ? 'Tap the broadcast button to send your first message'
+                ? 'Emergency messages and broadcasts will appear here'
                 : 'Pull down to refresh and connect to the mesh network',
             style: TextStyle(
               fontSize: 16,
@@ -145,10 +182,19 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
   }
 
   Widget _buildMessageCard(CrisisMessage message) {
+    final isSOSMessage = message.title == 'SOS EMERGENCY' || message.title == 'SOS EMERGENCY (SENT)';
+    final isSentMessage = message.title.contains('(SENT)');
+    
     return Card(
       margin: EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: isSOSMessage ? 4 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: isSOSMessage 
+            ? BorderSide(color: Colors.red, width: 2)
+            : BorderSide.none,
+      ),
+      color: isSOSMessage ? Colors.red.shade50 : null,
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -158,9 +204,9 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: _getPriorityColor(message.priority),
+                  backgroundColor: isSOSMessage ? Colors.red : _getPriorityColor(message.priority),
                   child: Icon(
-                    _getMessageTypeIcon(message.type),
+                    isSOSMessage ? Icons.warning : _getMessageTypeIcon(message.type),
                     color: Colors.white,
                     size: 20,
                   ),
@@ -170,12 +216,23 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        message.title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      Row(
+                        children: [
+                          if (isSOSMessage) ...[
+                            Icon(Icons.warning, color: Colors.red, size: 16),
+                            SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Text(
+                              message.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: isSOSMessage ? Colors.red : null,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
                         _formatTimestamp(message.timestamp),
@@ -207,7 +264,11 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
             SizedBox(height: 12),
             Text(
               message.content,
-              style: TextStyle(fontSize: 14, height: 1.4),
+              style: TextStyle(
+                fontSize: 14, 
+                height: 1.4,
+                color: isSOSMessage ? Colors.red.shade700 : null,
+              ),
             ),
             SizedBox(height: 8),
             Row(
@@ -368,7 +429,7 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                                 Text(
                                   'Broadcast Message',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -654,16 +715,15 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
             foregroundColor: Colors.black,
             elevation: 1,
             actions: [
-              
               IconButton(
-                      icon: Icon(Icons.settings),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => SettingsScreen()),
-                        );
-                      },
-                    ),
+                icon: Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SettingsScreen()),
+                  );
+                },
+              ),
               // Add clear messages button
               PopupMenuButton<String>(
                 onSelected: (value) {
@@ -683,7 +743,6 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
                     ),
                   ),
                 ],
-                
               ),
             ],
             bottom: PreferredSize(

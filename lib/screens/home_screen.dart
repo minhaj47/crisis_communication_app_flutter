@@ -36,13 +36,13 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Messages'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.warning),
+            icon: Icon(Icons.error),
             label: 'SOS',
           ),  
         
           BottomNavigationBarItem(
             icon: Icon(Icons.warning),
-            label: 'Tools',
+            label: 'Alerts',
           ),
        
             BottomNavigationBarItem(
