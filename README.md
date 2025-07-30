@@ -21,11 +21,11 @@ During crisis situations like natural disasters, protests, or conflicts, traditi
 ## 📱 Screenshots
 
 <div align="center">
-  <img src="screenshots/chat_screen.png" alt="Chat Screen" width="200"/>
-  <img src="screenshots/broadcast_messaging.png" alt="Broadcast Messaging" width="200"/>
-  <img src="screenshots/sos_alert.png" alt="SOS Alert" width="200"/>
-  <img src="screenshots/tools.png" alt="Tools" width="200"/>  
-  <img src="screenshots/location_sharing.png" alt="Location Sharing" width="200"/>
+  <img src="/chat_screen.png" alt="Chat Screen" width="190"/>
+  <img src="/broadcast_messaging.png" alt="Broadcast Messaging" width="190"/>
+  <img src="/sos_alert.png" alt="SOS Alert" width="190"/>
+  <img src="/tools.png" alt="Tools" width="190"/>  
+  <img src="/location_sharing.png" alt="Location Sharing" width="190"/>
 </div>
 
 ## ✨ Key Features
